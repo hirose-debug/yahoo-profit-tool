@@ -1611,7 +1611,11 @@
 
         // スプレッドシートへ保存
         async function saveToSpreadsheet() {
+            console.log('=== スプレッドシート保存開始 ===');
+            
             const gasUrl = localStorage.getItem('yahoo-gas-url');
+            console.log('GAS URL:', gasUrl);
+            
             if (!gasUrl) {
                 alert('先にGAS WebアプリURLを設定してください');
                 return;
@@ -1621,12 +1625,16 @@
                              ? monthlyData[currentYear][currentMonth] 
                              : [];
             
+            console.log('現在の年月:', currentYear, currentMonth);
+            console.log('商品数:', products.length);
+            console.log('最初の3商品:', products.slice(0, 3));
+            
             if (products.length === 0) {
                 alert(`${currentYear}年${currentMonth}のデータがありません`);
                 return;
             }
 
-            if (!confirm(`${currentYear}年${currentMonth}のデータをスプレッドシートに保存しますか？`)) {
+            if (!confirm(`${currentYear}年${currentMonth}のデータをスプレッドシートに保存しますか？\n商品数: ${products.length}件`)) {
                 return;
             }
 
@@ -1637,7 +1645,7 @@
                 const dataToSave = {
                     yearMonth: `${currentYear}/${monthNumber}`,
                     products: products.map(p => ({
-                        code: p.id,
+                        code: p.id || p.productCode,
                         name: p.name,
                         sales: Math.round(p.sales),
                         quantity: p.quantity,
@@ -1650,6 +1658,13 @@
                     adjustments: adj
                 };
 
+                console.log('送信データ:', {
+                    yearMonth: dataToSave.yearMonth,
+                    productsCount: dataToSave.products.length,
+                    firstProduct: dataToSave.products[0]
+                });
+                console.log('送信JSON:', JSON.stringify(dataToSave).substring(0, 500) + '...');
+
                 const response = await fetch(gasUrl, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -1659,7 +1674,8 @@
                     body: JSON.stringify(dataToSave)
                 });
 
-                alert(`${currentYear}年${currentMonth}のデータをスプレッドシートに送信しました！\n数秒後にシートを確認してください。`);
+                console.log('送信完了');
+                alert(`${currentYear}年${currentMonth}のデータをスプレッドシートに送信しました！\n商品数: ${products.length}件\n\n数秒後にシートを確認してください。`);
             } catch (error) {
                 console.error('送信エラー:', error);
                 alert('スプレッドシートへの保存に失敗しました: ' + error.message);
