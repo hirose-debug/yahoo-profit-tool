@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yahoo!ショッピング利益計算表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- ヘッダー -->
+    <div class="bg-gradient-to-r from-red-500 to-orange-600 text-white p-6 shadow-lg">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <h1 class="text-3xl font-bold"><span id="headerYear">2026年</span> <span id="headerMonth">1月</span></h1>
+                <h2 class="text-xl">Yahoo!ショッピング利益計算表</h2>
+            </div>
+            <div class="flex gap-2">
+                <select id="yearSelect" class="px-4 py-2 bg-white text-gray-800 rounded shadow font-semibold">
+                    <option value="2024">2024年</option>
+                    <option value="2025">2025年</option>
+                    <option value="2026" selected>2026年</option>
+                    <option value="2027">2027年</option>
+                </select>
+                <button onclick="openUploadModal()" class="px-6 py-2 bg-green-500 hover:bg-green-600 rounded shadow font-semibold">
+                    + データ登録
+                </button>
+                <button onclick="generateMonthlyReport()" class="px-6 py-2 bg-purple-500 hover:bg-purple-600 rounded shadow font-semibold">
+                    📄 月次レポート
+                </button>
+                <button onclick="exportProductData()" class="px-6 py-2 bg-teal-500 hover:bg-teal-600 rounded shadow font-semibold">
+                    💾 商品データ
+                </button>
+                <button onclick="openCostEditModal()" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded shadow font-semibold">
+                    ✏️ 原価編集
+                </button>
+                <button onclick="openBackupModal()" class="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 rounded shadow font-semibold">
+                    💾 バックアップ
+                </button>
+                <button onclick="openSpreadsheetModal()" class="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 rounded shadow font-semibold">
+                    📊 スプレッドシート
+                </button>
+                <button onclick="resetAllData()" class="px-6 py-2 bg-red-500 hover:bg-red-600 rounded shadow font-semibold">
+                    🗑️ リセット
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto p-6">
+        <!-- サマリー -->
+        <div class="grid grid-cols-9 gap-3 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1">売上</div>
+                <div class="text-2xl font-bold" id="totalSales">¥0</div>
+                <div class="text-xs text-gray-500" id="salesPercentage">(+0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1">手数料</div>
+                <div class="text-2xl font-bold text-red-600" id="totalCommission">¥0</div>
+                <div class="text-xs text-gray-500" id="commissionRate">(11%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
+                    <span>送料</span>
+                    <button onclick="toggleEditMode('shipping')" class="text-xs text-blue-600">✏️</button>
+                </div>
+                <div class="text-2xl font-bold text-red-600" id="totalShipping">¥0</div>
+                <div class="text-xs text-gray-500" id="shippingRate">(0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1">広告費</div>
+                <div class="text-2xl font-bold text-red-600" id="totalAds">¥0</div>
+                <div class="text-xs text-gray-500" id="adsRate">(0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
+                    <span>PRオプション</span>
+                    <button onclick="toggleEditMode('proption')" class="text-xs text-blue-600">✏️</button>
+                </div>
+                <div class="text-2xl font-bold text-red-600" id="totalProption">¥0</div>
+                <div class="text-xs text-gray-500" id="proptionRate">(0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1">仕入原価</div>
+                <div class="text-2xl font-bold text-red-600" id="totalCost">¥0</div>
+                <div class="text-xs text-gray-500" id="costRate">(0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
+                    <span>その他</span>
+                    <button onclick="toggleEditMode('other')" class="text-xs text-blue-600">✏️</button>
+                </div>
+                <div class="text-2xl font-bold" id="totalOther">¥0</div>
+                <div class="text-xs text-gray-500" id="otherRate">(0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
+                    <span>調整額</span>
+                    <button onclick="toggleEditMode('adjustment')" class="text-xs text-blue-600">✏️</button>
+                </div>
+                <div class="text-2xl font-bold" id="totalAdjustment">¥0</div>
+                <div class="text-xs text-gray-500" id="adjustmentRate">(0%)</div>
+            </div>
+            <div class="bg-orange-50 p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1">利益</div>
+                <div class="text-2xl font-bold text-orange-600" id="totalProfit">¥0</div>
+                <div class="text-xs text-gray-500" id="profitRate">(0%)</div>
+            </div>
+        </div>
+
+        <!-- 前年同月・前月比較 -->
+        <div class="bg-white p-4 rounded-lg shadow mb-6" id="comparisonSection" style="display:none;">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <div class="text-sm text-gray-600 mb-2">昨年同月</div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg font-semibold" id="lastYearSales">¥0</span>
+                        <span class="text-sm" id="lastYearComparison">(+0%)</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-600 mb-2">前月</div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg font-semibold" id="lastMonthSales">¥0</span>
+                        <span class="text-sm" id="lastMonthComparison">(+0%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 月選択 -->
+        <div class="bg-white rounded-lg shadow mb-6 p-4">
+            <div class="grid grid-cols-12 gap-2" id="monthSelector"></div>
+        </div>
+
+        <!-- タブ -->
+        <div class="flex gap-2 mb-4">
+            <button onclick="switchTab('products')" class="tab-btn px-6 py-3 rounded-t font-bold bg-orange-600 text-white">商品別利益</button>
+            <button onclick="switchTab('transition')" class="tab-btn px-6 py-3 rounded-t font-bold bg-gray-200 text-gray-700 hover:bg-gray-300">推移表</button>
+            <button onclick="switchTab('graph')" class="tab-btn px-6 py-3 rounded-t font-bold bg-gray-200 text-gray-700 hover:bg-gray-300">グラフ</button>
+            <button onclick="switchTab('ranking')" class="tab-btn px-6 py-3 rounded-t font-bold bg-gray-200 text-gray-700 hover:bg-gray-300">ランキング</button>
+        </div>
+
+        <!-- 商品別利益タブ -->
+        <div id="products" class="tab-content active">
+            <div class="bg-white p-4 rounded-lg shadow mb-4" id="searchBar" style="display:none;">
+                <div class="flex gap-4 items-center">
+                    <input type="text" id="searchInput" placeholder="商品名または商品コードで検索..." 
+                           class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500">
+                    <div class="text-sm text-gray-600" id="searchCount">0 / 0 件表示</div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100 border-b">
+                        <tr>
+                            <th class="p-3 text-left">商品コード</th>
+                            <th class="p-3 text-left">商品名</th>
+                            <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('price')">販売単価 ↕</th>
+                            <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('sales')">売上 ↕</th>
+                            <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('quantity')">注文数 ↕</th>
+                            <th class="p-3 text-right">手数料</th>
+                            <th class="p-3 text-right">送料</th>
+                            <th class="p-3 text-right">広告費</th>
+                            <th class="p-3 text-right">仕入原価</th>
+                            <th class="p-3 text-right">その他</th>
+                            <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('access')">PV数 ↕</th>
+                            <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('profit')">利益 ↕</th>
+                            <th class="p-3 text-right">利益率</th>
+                            <th class="p-3 text-right">広告抜き<br>利益率</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 推移表タブ -->
+        <div id="transition" class="tab-content">
+            <div class="bg-white rounded-lg shadow overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100 border-b">
+                        <tr>
+                            <th class="p-3 text-left">年月</th>
+                            <th class="p-3 text-right">売上</th>
+                            <th class="p-3 text-right">手数料</th>
+                            <th class="p-3 text-right">送料</th>
+                            <th class="p-3 text-right">広告費</th>
+                            <th class="p-3 text-right">PRオプション</th>
+                            <th class="p-3 text-right">仕入原価</th>
+                            <th class="p-3 text-right">その他</th>
+                            <th class="p-3 text-right">調整額</th>
+                            <th class="p-3 text-right">利益</th>
+                            <th class="p-3 text-right">利益率</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transitionTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- グラフタブ -->
+        <div id="graph" class="tab-content">
+            <div class="bg-white rounded-lg shadow p-6">
+                <canvas id="profitChart" height="100"></canvas>
+            </div>
+        </div>
+
+        <!-- ランキングタブ -->
+        <div id="ranking" class="tab-content">
+            <div class="grid grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">売上TOP10</h3>
+                    <div id="salesRanking"></div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">利益TOP10</h3>
+                    <div id="profitRanking"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- アップロードモーダル -->
+    <div id="uploadModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4">
+            <h2 class="text-2xl font-bold mb-6">データ登録</h2>
+            
+            <div class="space-y-4">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <label class="block mb-2 font-semibold">1. 売上CSV（Yahoo!ショッピング）</label>
+                    <input type="file" id="salesFile" accept=".csv" class="w-full">
+                    <p class="text-sm text-gray-500 mt-2">商品別売上・アクセスデータ</p>
+                    <div class="mt-2">
+                        <label class="block text-sm font-medium mb-1">対象年月</label>
+                        <div class="flex gap-2">
+                            <select id="salesYear" class="px-3 py-2 border rounded">
+                                <option value="2024">2024年</option>
+                                <option value="2025">2025年</option>
+                                <option value="2026" selected>2026年</option>
+                                <option value="2027">2027年</option>
+                            </select>
+                            <select id="salesMonth" class="px-3 py-2 border rounded">
+                                <option value="1">1月</option>
+                                <option value="2">2月</option>
+                                <option value="3">3月</option>
+                                <option value="4">4月</option>
+                                <option value="5">5月</option>
+                                <option value="6">6月</option>
+                                <option value="7">7月</option>
+                                <option value="8">8月</option>
+                                <option value="9">9月</option>
+                                <option value="10">10月</option>
+                                <option value="11">11月</option>
+                                <option value="12">12月</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <label class="block mb-2 font-semibold">2. 広告費CSV（Yahoo!ショッピング）</label>
+                    <input type="file" id="adsFile" accept=".csv" class="w-full">
+                    <p class="text-sm text-gray-500 mt-2">商品別広告費データ</p>
+                </div>
+
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <label class="block mb-2 font-semibold">3. 原価・経費CSV/Excel</label>
+                    <input type="file" id="costFile" accept=".csv,.xlsx,.xls" class="w-full">
+                    <p class="text-sm text-gray-500 mt-2">B列:商品コード、P列:原価、V列:送料</p>
+                    <div class="mt-2 text-sm" id="costStatus">未登録</div>
+                </div>
+            </div>
+
+            <div class="flex gap-4 mt-6">
+                <button onclick="processUpload()" class="flex-1 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700">
+                    データ取り込み
+                </button>
+                <button onclick="clearUploadFiles()" class="px-6 py-3 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600">
+                    クリア
+                </button>
+                <button onclick="closeUploadModal()" class="px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 原価編集モーダル -->
+    <div id="costEditModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold mb-6">原価・送料編集</h2>
+            <div class="mb-4">
+                <input type="text" id="costSearchInput" placeholder="商品コードまたは商品名で検索..." 
+                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500">
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100 border-b">
+                        <tr>
+                            <th class="p-3 text-left">商品コード</th>
+                            <th class="p-3 text-left">商品名</th>
+                            <th class="p-3 text-right">原価</th>
+                            <th class="p-3 text-right">送料</th>
+                            <th class="p-3 text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="costEditTable"></tbody>
+                </table>
+            </div>
+            <div class="flex gap-4 mt-6">
+                <button onclick="closeCostEditModal()" class="px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- バックアップモーダル -->
+    <div id="backupModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4">
+            <h2 class="text-2xl font-bold mb-6">データバックアップ</h2>
+            
+            <div class="space-y-4">
+                <div class="border-2 border-gray-300 rounded-lg p-6">
+                    <h3 class="font-semibold mb-3">データのダウンロード</h3>
+                    <p class="text-sm text-gray-600 mb-4">すべてのデータをJSON形式でダウンロードします</p>
+                    <button onclick="downloadBackup()" class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700">
+                        📥 バックアップをダウンロード
+                    </button>
+                </div>
+
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <h3 class="font-semibold mb-3">データの復元</h3>
+                    <p class="text-sm text-gray-600 mb-4">バックアップファイルからデータを復元します</p>
+                    <input type="file" id="backupFile" accept=".json" class="w-full mb-3">
+                    <button onclick="restoreBackup()" class="w-full bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700">
+                        📤 バックアップを復元
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex gap-4 mt-6">
+                <button onclick="closeBackupModal()" class="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- スプレッドシートモーダル -->
+    <div id="spreadsheetModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold mb-6">Googleスプレッドシート連携</h2>
+            
+            <div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p class="text-sm text-gray-700">
+                    <strong>⚠️ 事前準備が必要です</strong><br>
+                    Google Apps Script (GAS) のWebアプリURLを設定してください。<br>
+                    <a href="https://script.google.com" target="_blank" class="text-blue-600 underline">Google Apps Script</a>
+                </p>
+            </div>
+
+            <div class="space-y-4">
+                <div class="border-2 border-gray-300 rounded-lg p-6">
+                    <h3 class="font-semibold mb-3">GAS WebアプリURL</h3>
+                    <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/..." 
+                           class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 mb-3">
+                    <button onclick="saveGasUrl()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+                        URL を保存
+                    </button>
+                    <div class="mt-2 text-sm" id="gasUrlStatus"></div>
+                </div>
+
+                <div class="border-2 border-gray-300 rounded-lg p-6">
+                    <h3 class="font-semibold mb-3">スプレッドシートへ保存</h3>
+                    <p class="text-sm text-gray-600 mb-4">現在表示中の月次データをスプレッドシートに保存します</p>
+                    <button onclick="saveToSpreadsheet()" class="w-full bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700">
+                        📤 スプレッドシートへ保存
+                    </button>
+                </div>
+
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                    <h3 class="font-semibold mb-3">スプレッドシートから読み込み</h3>
+                    <p class="text-sm text-gray-600 mb-4">スプレッドシートからデータを読み込みます</p>
+                    <div class="flex gap-2 mb-3">
+                        <select id="loadYear" class="px-3 py-2 border rounded">
+                            <option value="2024">2024年</option>
+                            <option value="2025">2025年</option>
+                            <option value="2026" selected>2026年</option>
+                            <option value="2027">2027年</option>
+                        </select>
+                        <select id="loadMonth" class="px-3 py-2 border rounded">
+                            <option value="1">1月</option>
+                            <option value="2">2月</option>
+                            <option value="3">3月</option>
+                            <option value="4">4月</option>
+                            <option value="5">5月</option>
+                            <option value="6">6月</option>
+                            <option value="7">7月</option>
+                            <option value="8">8月</option>
+                            <option value="9">9月</option>
+                            <option value="10">10月</option>
+                            <option value="11">11月</option>
+                            <option value="12">12月</option>
+                        </select>
+                    </div>
+                    <button onclick="loadFromSpreadsheet()" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700">
+                        📥 スプレッドシートから読み込み
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex gap-4 mt-6">
+                <button onclick="closeSpreadsheetModal()" class="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentYear = '2026';
+        let currentMonth = '1月';
+        let monthlyData = {};
+        let rawData = {
+            sales: {},
+            ads: {},
+            cost: {}
+        };
+        let adjustments = {};
+        let uploadStatus = {
+            sales: false,
+            ads: false,
+            cost: false
+        };
+
+        const COMMISSION_RATE = 0.11; // Yahoo!ショッピング手数料 11%
+
+        // 初期化
+        initMonthSelector();
+        loadFromStorage();
+
+        function initMonthSelector() {
+            const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+            const selector = document.getElementById('monthSelector');
+            selector.innerHTML = months.map(month => 
+                `<button onclick="selectMonth('${month}')" 
+                    class="month-btn px-4 py-3 rounded font-bold transition
+                    ${month === currentMonth ? 'bg-orange-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}"
+                >${month}</button>`
+            ).join('');
+        }
+
+        function selectMonth(month) {
+            currentMonth = month;
+            document.getElementById('headerMonth').textContent = month;
+            initMonthSelector();
+            updateDisplay();
+            updateComparison();
+        }
+
+        function getAdjustments(year, month) {
+            if (!adjustments[year]) adjustments[year] = {};
+            if (!adjustments[year][month]) {
+                adjustments[year][month] = {
+                    shipping: 0,
+                    proption: 0,
+                    other: 0,
+                    adjustment: 0
+                };
+            }
+            return adjustments[year][month];
+        }
+
+        function updateDisplay() {
+            const products = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth]) 
+                             ? monthlyData[currentYear][currentMonth] 
+                             : [];
+            
+            const adj = getAdjustments(currentYear, currentMonth);
+            
+            const totals = products.reduce((acc, p) => ({
+                sales: acc.sales + (p.sales || 0),
+                commission: acc.commission + (p.commission || 0),
+                shipping: acc.shipping + (p.shipping || 0),
+                ads: acc.ads + (p.ads || 0),
+                proption: acc.proption + (p.proption || 0),
+                cost: acc.cost + (p.cost || 0),
+                other: acc.other + (p.other || 0)
+            }), { sales: 0, commission: 0, shipping: 0, ads: 0, proption: 0, cost: 0, other: 0 });
+
+            totals.shipping += adj.shipping || 0;
+            totals.proption += adj.proption || 0;
+            totals.other += adj.other || 0;
+            const totalAdjustment = adj.adjustment || 0;
+            
+            const profit = totals.sales - totals.commission - totals.shipping - totals.ads - totals.proption - totals.cost - totals.other + totalAdjustment;
+
+            document.getElementById('totalSales').textContent = formatCurrency(totals.sales);
+            document.getElementById('totalCommission').textContent = formatCurrency(totals.commission);
+            document.getElementById('totalShipping').textContent = formatCurrency(totals.shipping);
+            document.getElementById('totalAds').textContent = formatCurrency(totals.ads);
+            document.getElementById('totalProption').textContent = formatCurrency(totals.proption);
+            document.getElementById('totalCost').textContent = formatCurrency(totals.cost);
+            document.getElementById('totalOther').textContent = formatCurrency(totals.other);
+            document.getElementById('totalAdjustment').textContent = formatCurrency(totalAdjustment);
+            document.getElementById('totalProfit').textContent = formatCurrency(profit);
+
+            document.getElementById('commissionRate').textContent = `(11%)`;
+            document.getElementById('shippingRate').textContent = totals.sales > 0 ? `(${(totals.shipping/totals.sales*100).toFixed(1)}%)` : '(0%)';
+            document.getElementById('adsRate').textContent = totals.sales > 0 ? `(${(totals.ads/totals.sales*100).toFixed(1)}%)` : '(0%)';
+            document.getElementById('proptionRate').textContent = totals.sales > 0 ? `(${(totals.proption/totals.sales*100).toFixed(1)}%)` : '(0%)';
+            document.getElementById('costRate').textContent = totals.sales > 0 ? `(${(totals.cost/totals.sales*100).toFixed(1)}%)` : '(0%)';
+            document.getElementById('otherRate').textContent = totals.sales > 0 ? `(${(totals.other/totals.sales*100).toFixed(1)}%)` : '(0%)';
+            document.getElementById('profitRate').textContent = totals.sales > 0 ? `(${(profit/totals.sales*100).toFixed(1)}%)` : '(0%)';
+
+            updateProductsTable();
+            updateTransitionTable();
+            updateGraph();
+            updateRanking();
+        }
+
+        function updateProductsTable() {
+            const products = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth]) 
+                             ? monthlyData[currentYear][currentMonth] 
+                             : [];
+            
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = products.filter(p => 
+                p.name.toLowerCase().includes(searchTerm) || 
+                p.id.toLowerCase().includes(searchTerm)
+            );
+
+            if (products.length > 0) {
+                document.getElementById('searchBar').style.display = 'block';
+                document.getElementById('searchCount').textContent = `${filtered.length} / ${products.length} 件表示`;
+            }
+
+            const tbody = document.getElementById('productsTable');
+            tbody.innerHTML = filtered.map(p => {
+                const profit = p.sales - p.commission - p.shipping - p.ads - (p.proption || 0) - p.cost - (p.other || 0);
+                const profitRate = p.sales > 0 ? (profit / p.sales * 100).toFixed(1) : 0;
+                const profitWithoutAds = p.sales - p.commission - p.shipping - p.cost - (p.other || 0);
+                const profitRateWithoutAds = p.sales > 0 ? (profitWithoutAds / p.sales * 100).toFixed(1) : 0;
+                const unitPrice = p.quantity > 0 ? Math.round(p.sales / p.quantity) : 0;
+                
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3">${p.id}</td>
+                        <td class="p-3">${p.name}</td>
+                        <td class="p-3 text-right">${formatCurrency(unitPrice)}</td>
+                        <td class="p-3 text-right font-semibold">${formatCurrency(p.sales)}</td>
+                        <td class="p-3 text-right">${p.quantity}</td>
+                        <td class="p-3 text-right text-red-600">${formatCurrency(p.commission)}</td>
+                        <td class="p-3 text-right text-red-600">${formatCurrency(p.shipping)}</td>
+                        <td class="p-3 text-right text-red-600">${formatCurrency(p.ads)}</td>
+                        <td class="p-3 text-right text-red-600">${formatCurrency(p.cost)}</td>
+                        <td class="p-3 text-right">${formatCurrency(p.other || 0)}</td>
+                        <td class="p-3 text-right">${p.access || 0}</td>
+                        <td class="p-3 text-right font-bold ${profit >= 0 ? 'text-blue-600' : 'text-red-600'}">${formatCurrency(profit)}</td>
+                        <td class="p-3 text-right ${profitRate >= 0 ? 'text-blue-600' : 'text-red-600'}">${profitRate}%</td>
+                        <td class="p-3 text-right ${profitRateWithoutAds >= 0 ? 'text-green-600' : 'text-red-600'}">${profitRateWithoutAds}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateTransitionTable() {
+            const tbody = document.getElementById('transitionTable');
+            const rows = [];
+
+            for (let year in monthlyData) {
+                for (let month in monthlyData[year]) {
+                    const products = monthlyData[year][month];
+                    const adj = getAdjustments(year, month);
+                    
+                    const totals = products.reduce((acc, p) => ({
+                        sales: acc.sales + (p.sales || 0),
+                        commission: acc.commission + (p.commission || 0),
+                        shipping: acc.shipping + (p.shipping || 0),
+                        ads: acc.ads + (p.ads || 0),
+                        proption: acc.proption + (p.proption || 0),
+                        cost: acc.cost + (p.cost || 0),
+                        other: acc.other + (p.other || 0)
+                    }), { sales: 0, commission: 0, shipping: 0, ads: 0, proption: 0, cost: 0, other: 0 });
+
+                    totals.shipping += adj.shipping || 0;
+                    totals.proption += adj.proption || 0;
+                    totals.other += adj.other || 0;
+                    const totalAdjustment = adj.adjustment || 0;
+                    
+                    const profit = totals.sales - totals.commission - totals.shipping - totals.ads - totals.proption - totals.cost - totals.other + totalAdjustment;
+                    const profitRate = totals.sales > 0 ? (profit / totals.sales * 100).toFixed(1) : 0;
+
+                    rows.push({
+                        year: parseInt(year),
+                        monthNum: parseInt(month.replace('月', '')),
+                        yearMonth: `${year}年${month}`,
+                        ...totals,
+                        adjustment: totalAdjustment,
+                        profit,
+                        profitRate
+                    });
+                }
+            }
+
+            rows.sort((a, b) => {
+                if (a.year !== b.year) return b.year - a.year;
+                return b.monthNum - a.monthNum;
+            });
+
+            tbody.innerHTML = rows.map(r => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-3">${r.yearMonth}</td>
+                    <td class="p-3 text-right font-semibold">${formatCurrency(r.sales)}</td>
+                    <td class="p-3 text-right text-red-600">${formatCurrency(r.commission)}</td>
+                    <td class="p-3 text-right text-red-600">${formatCurrency(r.shipping)}</td>
+                    <td class="p-3 text-right text-red-600">${formatCurrency(r.ads)}</td>
+                    <td class="p-3 text-right text-red-600">${formatCurrency(r.proption)}</td>
+                    <td class="p-3 text-right text-red-600">${formatCurrency(r.cost)}</td>
+                    <td class="p-3 text-right">${formatCurrency(r.other)}</td>
+                    <td class="p-3 text-right">${formatCurrency(r.adjustment)}</td>
+                    <td class="p-3 text-right font-bold ${r.profit >= 0 ? 'text-blue-600' : 'text-red-600'}">${formatCurrency(r.profit)}</td>
+                    <td class="p-3 text-right ${r.profitRate >= 0 ? 'text-blue-600' : 'text-red-600'}">${r.profitRate}%</td>
+                </tr>
+            `).join('');
+        }
+
+        let profitChart = null;
+
+        function updateGraph() {
+            const ctx = document.getElementById('profitChart');
+            const rows = [];
+
+            for (let year in monthlyData) {
+                for (let month in monthlyData[year]) {
+                    const products = monthlyData[year][month];
+                    const adj = getAdjustments(year, month);
+                    
+                    const totals = products.reduce((acc, p) => ({
+                        sales: acc.sales + (p.sales || 0),
+                        commission: acc.commission + (p.commission || 0),
+                        shipping: acc.shipping + (p.shipping || 0),
+                        ads: acc.ads + (p.ads || 0),
+                        proption: acc.proption + (p.proption || 0),
+                        cost: acc.cost + (p.cost || 0),
+                        other: acc.other + (p.other || 0)
+                    }), { sales: 0, commission: 0, shipping: 0, ads: 0, proption: 0, cost: 0, other: 0 });
+
+                    totals.shipping += adj.shipping || 0;
+                    totals.proption += adj.proption || 0;
+                    totals.other += adj.other || 0;
+                    const totalAdjustment = adj.adjustment || 0;
+                    
+                    const profit = totals.sales - totals.commission - totals.shipping - totals.ads - totals.proption - totals.cost - totals.other + totalAdjustment;
+
+                    rows.push({
+                        year: parseInt(year),
+                        monthNum: parseInt(month.replace('月', '')),
+                        label: `${year}/${month.replace('月', '')}`,
+                        sales: totals.sales,
+                        profit: profit
+                    });
+                }
+            }
+
+            rows.sort((a, b) => {
+                if (a.year !== b.year) return a.year - b.year;
+                return a.monthNum - b.monthNum;
+            });
+
+            if (profitChart) {
+                profitChart.destroy();
+            }
+
+            profitChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.label),
+                    datasets: [
+                        {
+                            label: '売上',
+                            data: rows.map(r => r.sales),
+                            backgroundColor: 'rgba(255, 140, 0, 0.5)',
+                            borderColor: 'rgba(255, 140, 0, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '利益',
+                            data: rows.map(r => r.profit),
+                            type: 'line',
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '売上 (円)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '利益 (円)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                    }
+                }
+            });
+        }
+
+        function updateRanking() {
+            const products = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth]) 
+                             ? monthlyData[currentYear][currentMonth] 
+                             : [];
+
+            const salesRanking = [...products]
+                .sort((a, b) => b.sales - a.sales)
+                .slice(0, 10);
+
+            const profitRanking = [...products]
+                .map(p => ({
+                    ...p,
+                    profit: p.sales - p.commission - p.shipping - p.ads - (p.proption || 0) - p.cost - (p.other || 0)
+                }))
+                .sort((a, b) => b.profit - a.profit)
+                .slice(0, 10);
+
+            document.getElementById('salesRanking').innerHTML = salesRanking.map((p, i) => `
+                <div class="flex items-center gap-3 py-2 border-b">
+                    <div class="text-2xl font-bold text-gray-400 w-8">${i + 1}</div>
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm">${p.name}</div>
+                        <div class="text-xs text-gray-500">${p.id}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold text-orange-600">${formatCurrency(p.sales)}</div>
+                        <div class="text-xs text-gray-500">${p.quantity}個</div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('profitRanking').innerHTML = profitRanking.map((p, i) => `
+                <div class="flex items-center gap-3 py-2 border-b">
+                    <div class="text-2xl font-bold text-gray-400 w-8">${i + 1}</div>
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm">${p.name}</div>
+                        <div class="text-xs text-gray-500">${p.id}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold ${p.profit >= 0 ? 'text-blue-600' : 'text-red-600'}">${formatCurrency(p.profit)}</div>
+                        <div class="text-xs text-gray-500">${p.sales > 0 ? (p.profit/p.sales*100).toFixed(1) : 0}%</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateComparison() {
+            const currentSales = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth])
+                ? monthlyData[currentYear][currentMonth].reduce((sum, p) => sum + p.sales, 0)
+                : 0;
+
+            const lastYear = (parseInt(currentYear) - 1).toString();
+            const lastYearSales = (monthlyData[lastYear] && monthlyData[lastYear][currentMonth])
+                ? monthlyData[lastYear][currentMonth].reduce((sum, p) => sum + p.sales, 0)
+                : 0;
+
+            const monthNum = parseInt(currentMonth.replace('月', ''));
+            const lastMonthNum = monthNum === 1 ? 12 : monthNum - 1;
+            const lastMonthYear = monthNum === 1 ? (parseInt(currentYear) - 1).toString() : currentYear;
+            const lastMonthStr = lastMonthNum + '月';
+            const lastMonthSales = (monthlyData[lastMonthYear] && monthlyData[lastMonthYear][lastMonthStr])
+                ? monthlyData[lastMonthYear][lastMonthStr].reduce((sum, p) => sum + p.sales, 0)
+                : 0;
+
+            if (lastYearSales > 0 || lastMonthSales > 0) {
+                document.getElementById('comparisonSection').style.display = 'block';
+                
+                document.getElementById('lastYearSales').textContent = formatCurrency(lastYearSales);
+                const lyChange = lastYearSales > 0 ? ((currentSales - lastYearSales) / lastYearSales * 100).toFixed(1) : 0;
+                document.getElementById('lastYearComparison').textContent = `(${lyChange >= 0 ? '+' : ''}${lyChange}%)`;
+                document.getElementById('lastYearComparison').className = lyChange >= 0 ? 'text-sm text-blue-600' : 'text-sm text-red-600';
+
+                document.getElementById('lastMonthSales').textContent = formatCurrency(lastMonthSales);
+                const lmChange = lastMonthSales > 0 ? ((currentSales - lastMonthSales) / lastMonthSales * 100).toFixed(1) : 0;
+                document.getElementById('lastMonthComparison').textContent = `(${lmChange >= 0 ? '+' : ''}${lmChange}%)`;
+                document.getElementById('lastMonthComparison').className = lmChange >= 0 ? 'text-sm text-blue-600' : 'text-sm text-red-600';
+            }
+        }
+
+        function formatCurrency(value) {
+            return '¥' + Math.round(value).toLocaleString();
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-orange-600', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            });
+            event.target.classList.remove('bg-gray-200', 'text-gray-700');
+            event.target.classList.add('bg-orange-600', 'text-white');
+        }
+
+        function sortTable(column) {
+            const products = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth]) 
+                             ? monthlyData[currentYear][currentMonth] 
+                             : [];
+            
+            products.sort((a, b) => {
+                if (column === 'sales') return b.sales - a.sales;
+                if (column === 'quantity') return b.quantity - a.quantity;
+                if (column === 'price') {
+                    const priceA = a.quantity > 0 ? a.sales / a.quantity : 0;
+                    const priceB = b.quantity > 0 ? b.sales / b.quantity : 0;
+                    return priceB - priceA;
+                }
+                if (column === 'access') return (b.access || 0) - (a.access || 0);
+                if (column === 'profit') {
+                    const profitA = a.sales - a.commission - a.shipping - a.ads - (a.proption || 0) - a.cost - (a.other || 0);
+                    const profitB = b.sales - b.commission - b.shipping - b.ads - (b.proption || 0) - b.cost - (b.other || 0);
+                    return profitB - profitA;
+                }
+            });
+
+            updateProductsTable();
+        }
+
+        // モーダル関連
+        function openUploadModal() {
+            document.getElementById('uploadModal').classList.remove('hidden');
+            document.getElementById('uploadModal').classList.add('flex');
+            
+            const now = new Date();
+            document.getElementById('salesYear').value = now.getFullYear();
+            document.getElementById('salesMonth').value = now.getMonth() + 1;
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.add('hidden');
+            document.getElementById('uploadModal').classList.remove('flex');
+        }
+
+        function clearUploadFiles() {
+            document.getElementById('salesFile').value = '';
+            document.getElementById('adsFile').value = '';
+            document.getElementById('costFile').value = '';
+            console.log('アップロードファイルをクリアしました');
+        }
+
+        function openCostEditModal() {
+            document.getElementById('costEditModal').classList.remove('hidden');
+            document.getElementById('costEditModal').classList.add('flex');
+            updateCostEditTable();
+        }
+
+        function closeCostEditModal() {
+            document.getElementById('costEditModal').classList.add('hidden');
+            document.getElementById('costEditModal').classList.remove('flex');
+        }
+
+        function updateCostEditTable() {
+            const searchTerm = document.getElementById('costSearchInput').value.toLowerCase();
+            const tbody = document.getElementById('costEditTable');
+            
+            const allProducts = [];
+            for (let code in rawData.cost) {
+                allProducts.push({
+                    id: code,
+                    name: rawData.cost[code].name || '',
+                    cost: rawData.cost[code].cost || 0,
+                    shipping: rawData.cost[code].shipping || 0
+                });
+            }
+
+            const filtered = allProducts.filter(p => 
+                p.id.toLowerCase().includes(searchTerm) || 
+                p.name.toLowerCase().includes(searchTerm)
+            );
+
+            tbody.innerHTML = filtered.map(p => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-3">${p.id}</td>
+                    <td class="p-3">${p.name}</td>
+                    <td class="p-3 text-right">
+                        <input type="number" value="${p.cost}" 
+                               onchange="updateCostValue('${p.id}', 'cost', this.value)"
+                               class="w-24 px-2 py-1 border rounded text-right">
+                    </td>
+                    <td class="p-3 text-right">
+                        <input type="number" value="${p.shipping}" 
+                               onchange="updateCostValue('${p.id}', 'shipping', this.value)"
+                               class="w-24 px-2 py-1 border rounded text-right">
+                    </td>
+                    <td class="p-3 text-center">
+                        <button onclick="saveCostEdit('${p.id}')" 
+                                class="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600">
+                            保存
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateCostValue(id, field, value) {
+            if (!rawData.cost[id]) rawData.cost[id] = {};
+            rawData.cost[id][field] = parseFloat(value) || 0;
+        }
+
+        function saveCostEdit(id) {
+            recalculateAllMonths();
+            saveToStorage();
+            updateDisplay();
+            alert('保存しました');
+        }
+
+        document.getElementById('costSearchInput').addEventListener('input', updateCostEditTable);
+
+        async function processUpload() {
+            const salesFile = document.getElementById('salesFile').files[0];
+            const adsFile = document.getElementById('adsFile').files[0];
+            const costFile = document.getElementById('costFile').files[0];
+
+            const year = document.getElementById('salesYear').value;
+            const monthNum = document.getElementById('salesMonth').value;
+            const month = monthNum + '月';
+
+            if (!salesFile) {
+                alert('売上CSVを選択してください');
+                return;
+            }
+
+            // 既存データがある場合は確認
+            if (monthlyData[year] && monthlyData[year][month]) {
+                if (!confirm(`${year}年${month}のデータが既に存在します。\n上書きしますか？`)) {
+                    return;
+                }
+            }
+
+            try {
+                // 売上CSVの読み込み
+                const salesData = await readCSV(salesFile, 'shift-jis');
+                const salesProducts = {};
+                
+                console.log('売上CSV読み込み開始:', salesData.length + '行');
+                
+                // C列（サブコード）が空欄の行のみを抽出（集約データ）
+                let aggregateCount = 0;
+                let skippedCount = 0;
+                
+                salesData.forEach((row, index) => {
+                    const productCode = (row['商品コード'] || '').trim();
+                    const subCode = (row['サブコード'] || '').trim();
+                    const sales = parseFloat(row['売上合計値(税込)'] || row['売上合計値（税込）']) || 0;
+                    const quantity = parseInt(row['注文数合計']) || 0;
+                    const purchaseRate = row['平均購買率'];
+                    const pv1 = parseInt(row['ページビュー(優良配送あり)'] || row['ページビュー（優良配送あり）']) || 0;
+                    const pv2 = parseInt(row['ページビュー(優良配送なし)'] || row['ページビュー（優良配送なし）']) || 0;
+                    
+                    // サブコードが空欄の行のみ処理（集約データ）
+                    if (!subCode && productCode) {
+                        aggregateCount++;
+                        
+                        const avgPurchaseRate = (purchaseRate && purchaseRate !== '集計対象外') 
+                            ? parseFloat(purchaseRate) 
+                            : 0;
+                        
+                        salesProducts[productCode] = {
+                            id: productCode,
+                            productCode: productCode,
+                            name: row['商品名'],
+                            sales: sales,
+                            quantity: quantity,
+                            purchaseRate: avgPurchaseRate,
+                            access: pv1 + pv2,
+                            commission: sales * COMMISSION_RATE,
+                            shipping: 0,
+                            ads: 0,
+                            proption: 0,
+                            cost: 0,
+                            other: 0
+                        };
+                        
+                        if (aggregateCount <= 5) {
+                            console.log(`  集約データ[${aggregateCount}]: "${productCode}" -> 売上=${sales}円, 注文数=${quantity}`);
+                        }
+                    } else if (subCode) {
+                        skippedCount++;
+                    }
+                });
+                
+                console.log(`売上データ処理完了:`);
+                console.log(`  集約行（使用）: ${aggregateCount}件`);
+                console.log(`  バリエーション行（スキップ）: ${skippedCount}件`);
+
+                // 広告費CSVの読み込み
+                if (adsFile) {
+                    const adsData = await readCSV(adsFile, 'shift-jis');
+                    console.log('広告費CSV読み込み開始:', adsData.length + '行');
+                    
+                    let adsMatchCount = 0;
+                    adsData.forEach(row => {
+                        const productCode = (row['商品コード'] || '').trim();
+                        const adCost = parseFloat(row['利用金額']) || 0;
+                        
+                        if (adCost > 0 && productCode) {
+                            if (salesProducts[productCode]) {
+                                salesProducts[productCode].ads += adCost;
+                                adsMatchCount++;
+                            }
+                        }
+                    });
+                    console.log(`広告費マッチング完了: ${adsMatchCount}/${adsData.length}件`);
+                }
+
+                // 原価CSVの読み込み
+                if (costFile) {
+                    let costCount = 0;
+                    console.log('原価ファイル読み込み開始:', costFile.name);
+                    
+                    // ファイル拡張子をチェック
+                    const fileName = costFile.name.toLowerCase();
+                    let costDataArray = [];
+                    
+                    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                        // Excelファイルの読み込み
+                        console.log('Excel形式で読み込み中...');
+                        const data = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => resolve(e.target.result);
+                            reader.onerror = reject;
+                            reader.readAsArrayBuffer(costFile);
+                        });
+                        
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        
+                        console.log(`Excel読み込み完了: ${jsonData.length}行`);
+                        
+                        // 配列データを処理
+                        for (let i = 1; i < jsonData.length; i++) { // ヘッダー行をスキップ
+                            const row = jsonData[i];
+                            if (row && row.length > 21) {
+                                const productCode = row[1] ? String(row[1]).trim() : '';
+                                const name = row[3] ? String(row[3]).trim() : '';
+                                const costValue = row[15];
+                                const shippingValue = row[21];
+                                
+                                // ヘッダー行や空行をスキップ
+                                if (productCode && productCode !== '商品コード' && costValue !== undefined && costValue !== '商品単体原価') {
+                                    // 数値変換（文字列の場合はカンマを削除）
+                                    const cost = typeof costValue === 'number' ? costValue : parseFloat(String(costValue).replace(/,/g, '')) || 0;
+                                    const shipping = typeof shippingValue === 'number' ? shippingValue : parseFloat(String(shippingValue).replace(/,/g, '')) || 0;
+                                    
+                                    rawData.cost[productCode] = {
+                                        cost: cost,
+                                        shipping: shipping,
+                                        name: name
+                                    };
+                                    costCount++;
+                                    
+                                    if (costCount <= 5) {
+                                        console.log(`  原価登録[${costCount}]: "${productCode}" -> 原価=${cost}円, 送料=${shipping}円`);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // CSVファイルの読み込み
+                        console.log('CSV形式で読み込み中...');
+                        const costData = await readCSV(costFile, 'utf-8');
+                        
+                        costData.forEach((row, index) => {
+                            const rowArray = Object.values(row);
+                            if (rowArray.length > 21) {
+                                const productCode = (rowArray[1] || '').trim();
+                                const costStr = (rowArray[15] || '').trim();
+                                const shippingStr = (rowArray[21] || '').trim();
+                                const name = (rowArray[3] || '').trim();
+
+                                if (productCode && productCode !== '商品コード' && costStr && costStr !== '商品単体原価') {
+                                    const cost = parseFloat(costStr.replace(/,/g, '')) || 0;
+                                    const shipping = parseFloat(shippingStr.replace(/,/g, '')) || 0;
+                                    
+                                    rawData.cost[productCode] = {
+                                        cost: cost,
+                                        shipping: shipping,
+                                        name: name
+                                    };
+                                    costCount++;
+                                    
+                                    if (costCount <= 5) {
+                                        console.log(`  原価登録[${costCount}]: "${productCode}" -> 原価=${cost}円, 送料=${shipping}円`);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    uploadStatus.cost = true;
+                    document.getElementById('costStatus').textContent = '✓ 保存済み (' + costCount + '件)';
+                    document.getElementById('costStatus').className = 'text-green-600 mt-2 text-sm';
+                    console.log('原価データ登録完了:', costCount + '件');
+                    console.log('原価データサンプル（最初の10件）:', Object.keys(rawData.cost).slice(0, 10));
+                }
+
+                // 原価・送料を商品に反映
+                let matchedCount = 0;
+                let unmatchedProducts = [];
+                
+                console.log('=== 原価マッチング開始 ===');
+                console.log('登録されている原価データ数:', Object.keys(rawData.cost).length);
+                console.log('マッチング対象商品数:', Object.keys(salesProducts).length);
+                
+                // 原価データのサンプルを表示
+                const costSample = Object.keys(rawData.cost).slice(0, 5);
+                console.log('原価データサンプル:', costSample);
+                
+                // 売上データのサンプルを表示
+                const salesSample = Object.keys(salesProducts).slice(0, 5);
+                console.log('売上データサンプル:', salesSample);
+                
+                for (let productCode in salesProducts) {
+                    const product = salesProducts[productCode];
+                    
+                    if (rawData.cost[productCode]) {
+                        const costPerUnit = rawData.cost[productCode].cost || 0;
+                        const shippingPerUnit = rawData.cost[productCode].shipping || 0;
+                        product.cost = costPerUnit * product.quantity;
+                        product.shipping = shippingPerUnit * product.quantity;
+                        matchedCount++;
+                        
+                        if (matchedCount <= 5) {
+                            console.log(`✓ マッチング[${matchedCount}]: "${productCode}" -> 単価:原価=${costPerUnit}円/送料=${shippingPerUnit}円 × 数量${product.quantity} = 原価${product.cost}円/送料${product.shipping}円`);
+                        }
+                    } else {
+                        unmatchedProducts.push(productCode);
+                        if (unmatchedProducts.length <= 5) {
+                            console.log(`✗ マッチング失敗: "${productCode}" (原価データなし)`);
+                        }
+                    }
+                }
+                
+                console.log(`=== マッチング結果: ${matchedCount}/${Object.keys(salesProducts).length}件 成功 (${(matchedCount/Object.keys(salesProducts).length*100).toFixed(1)}%) ===`);
+                if (unmatchedProducts.length > 0) {
+                    console.log(`マッチング失敗: ${unmatchedProducts.length}件`);
+                    console.log('失敗した商品コード（最初の10件）:', unmatchedProducts.slice(0, 10));
+                }
+
+                // データを保存
+                if (!monthlyData[year]) monthlyData[year] = {};
+                monthlyData[year][month] = Object.values(salesProducts);
+
+                await saveToStorage();
+                
+                closeUploadModal();
+                currentYear = year;
+                currentMonth = month;
+                document.getElementById('headerYear').textContent = year + '年';
+                document.getElementById('headerMonth').textContent = month;
+                document.getElementById('yearSelect').value = year;
+                
+                initMonthSelector();
+                updateDisplay();
+                updateComparison();
+                
+                alert(`${year}年${month}のデータを取り込みました\n商品数: ${Object.keys(salesProducts).length}件`);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('データの取り込みに失敗しました: ' + error.message);
+            }
+        }
+
+        function readCSV(file, encoding = 'utf-8') {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const text = e.target.result;
+                        const lines = text.split('\n').filter(line => line.trim());
+                        if (lines.length === 0) {
+                            reject(new Error('CSVファイルが空です'));
+                            return;
+                        }
+                        
+                        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').replace(/\r/g, ''));
+                        const data = [];
+
+                        for (let i = 1; i < lines.length; i++) {
+                            if (!lines[i].trim()) continue;
+                            
+                            const values = lines[i].split(',').map(v => v.trim().replace(/"/g, '').replace(/\r/g, ''));
+                            const row = {};
+                            headers.forEach((header, index) => {
+                                row[header] = values[index] || '';
+                            });
+                            data.push(row);
+                        }
+                        console.log(`CSV読み込み成功: ${data.length}行, エンコーディング: ${encoding}`);
+                        console.log('ヘッダー:', headers);
+                        resolve(data);
+                    } catch (error) {
+                        console.error('CSV解析エラー:', error);
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => reject(new Error('ファイル読み込みエラー'));
+                
+                if (encoding === 'shift-jis') {
+                    reader.readAsText(file, 'Shift_JIS');
+                } else {
+                    reader.readAsText(file, encoding);
+                }
+            });
+        }
+
+        function recalculateAllMonths() {
+            for (let year in monthlyData) {
+                for (let month in monthlyData[year]) {
+                    monthlyData[year][month].forEach(product => {
+                        const productCode = product.productCode.trim();
+                        if (rawData.cost[productCode]) {
+                            const costPerUnit = rawData.cost[productCode].cost || 0;
+                            const shippingPerUnit = rawData.cost[productCode].shipping || 0;
+                            product.cost = costPerUnit * product.quantity;
+                            product.shipping = shippingPerUnit * product.quantity;
+                        }
+                    });
+                }
+            }
+        }
+
+        function generateMonthlyReport() {
+            const products = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth]) 
+                             ? monthlyData[currentYear][currentMonth] 
+                             : [];
+            
+            if (products.length === 0) {
+                alert('データがありません');
+                return;
+            }
+
+            const adj = getAdjustments(currentYear, currentMonth);
+            const totals = products.reduce((acc, p) => ({
+                sales: acc.sales + (p.sales || 0),
+                commission: acc.commission + (p.commission || 0),
+                shipping: acc.shipping + (p.shipping || 0),
+                ads: acc.ads + (p.ads || 0),
+                proption: acc.proption + (p.proption || 0),
+                cost: acc.cost + (p.cost || 0),
+                other: acc.other + (p.other || 0)
+            }), { sales: 0, commission: 0, shipping: 0, ads: 0, proption: 0, cost: 0, other: 0 });
+
+            totals.shipping += adj.shipping || 0;
+            totals.proption += adj.proption || 0;
+            totals.other += adj.other || 0;
+            const totalAdjustment = adj.adjustment || 0;
+            const profit = totals.sales - totals.commission - totals.shipping - totals.ads - totals.proption - totals.cost - totals.other + totalAdjustment;
+
+            let csv = '項目,金額,割合\n';
+            csv += `売上,${Math.round(totals.sales)},100.0%\n`;
+            csv += `手数料,${Math.round(totals.commission)},${(totals.commission/totals.sales*100).toFixed(1)}%\n`;
+            csv += `送料,${Math.round(totals.shipping)},${(totals.shipping/totals.sales*100).toFixed(1)}%\n`;
+            csv += `広告費,${Math.round(totals.ads)},${(totals.ads/totals.sales*100).toFixed(1)}%\n`;
+            csv += `PRオプション,${Math.round(totals.proption)},${(totals.proption/totals.sales*100).toFixed(1)}%\n`;
+            csv += `仕入原価,${Math.round(totals.cost)},${(totals.cost/totals.sales*100).toFixed(1)}%\n`;
+            csv += `その他,${Math.round(totals.other)},${(totals.other/totals.sales*100).toFixed(1)}%\n`;
+            csv += `調整額,${Math.round(totalAdjustment)},${(totalAdjustment/totals.sales*100).toFixed(1)}%\n`;
+            csv += `利益,${Math.round(profit)},${(profit/totals.sales*100).toFixed(1)}%\n`;
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Yahoo月次レポート_${currentYear}年${currentMonth}.csv`;
+            link.click();
+        }
+
+        function exportProductData() {
+            const products = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth]) 
+                             ? monthlyData[currentYear][currentMonth] 
+                             : [];
+            
+            if (products.length === 0) {
+                alert('データがありません');
+                return;
+            }
+
+            let csv = '商品コード,商品名,売上,注文数,手数料,送料,広告費,仕入原価,その他,利益,利益率,広告抜き利益率\n';
+            products.forEach(p => {
+                const profit = p.sales - p.commission - p.shipping - p.ads - (p.proption || 0) - p.cost - (p.other || 0);
+                const profitRate = p.sales > 0 ? (profit / p.sales * 100).toFixed(1) : 0;
+                const profitWithoutAds = p.sales - p.commission - p.shipping - p.cost - (p.other || 0);
+                const profitRateWithoutAds = p.sales > 0 ? (profitWithoutAds / p.sales * 100).toFixed(1) : 0;
+                csv += `${p.id},"${p.name}",${Math.round(p.sales)},${p.quantity},${Math.round(p.commission)},${Math.round(p.shipping)},${Math.round(p.ads)},${Math.round(p.cost)},${Math.round(p.other || 0)},${Math.round(profit)},${profitRate}%,${profitRateWithoutAds}%\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Yahoo商品データ_${currentYear}年${currentMonth}.csv`;
+            link.click();
+        }
+
+        async function saveToStorage() {
+            try {
+                if (window.storage) {
+                    await window.storage.set('yahoo-monthly-data', JSON.stringify(monthlyData));
+                    await window.storage.set('yahoo-raw-data', JSON.stringify(rawData));
+                    await window.storage.set('yahoo-adjustments', JSON.stringify(adjustments));
+                    await window.storage.set('yahoo-upload-status', JSON.stringify(uploadStatus));
+                    console.log('データ保存完了（window.storage）');
+                } else {
+                    throw new Error('window.storage not available');
+                }
+            } catch (error) {
+                console.log('window.storageでの保存失敗、localStorageを使用:', error);
+                localStorage.setItem('yahoo-monthly-data', JSON.stringify(monthlyData));
+                localStorage.setItem('yahoo-raw-data', JSON.stringify(rawData));
+                localStorage.setItem('yahoo-adjustments', JSON.stringify(adjustments));
+                localStorage.setItem('yahoo-upload-status', JSON.stringify(uploadStatus));
+                console.log('データ保存完了（localStorage）');
+            }
+        }
+
+        async function loadFromStorage() {
+            try {
+                if (window.storage) {
+                    console.log('window.storageからデータ読み込み中...');
+                    const monthlyResult = await window.storage.get('yahoo-monthly-data');
+                    if (monthlyResult && monthlyResult.value) {
+                        monthlyData = JSON.parse(monthlyResult.value);
+                        console.log('月次データ読み込み成功');
+                    }
+
+                    const rawResult = await window.storage.get('yahoo-raw-data');
+                    if (rawResult && rawResult.value) {
+                        rawData = JSON.parse(rawResult.value);
+                        console.log('原価データ読み込み成功:', Object.keys(rawData.cost).length + '件');
+                    }
+
+                    const adjustResult = await window.storage.get('yahoo-adjustments');
+                    if (adjustResult && adjustResult.value) {
+                        adjustments = JSON.parse(adjustResult.value);
+                    }
+
+                    const statusResult = await window.storage.get('yahoo-upload-status');
+                    if (statusResult && statusResult.value) {
+                        uploadStatus = JSON.parse(statusResult.value);
+                        if (uploadStatus.cost) {
+                            document.getElementById('costStatus').textContent = '✓ 保存済み';
+                            document.getElementById('costStatus').className = 'text-green-600 mt-2 text-sm';
+                        }
+                    }
+                    
+                    console.log('データ読み込み完了（window.storage）');
+                } else {
+                    throw new Error('window.storage not available');
+                }
+            } catch (error) {
+                console.log('window.storageでの読み込み失敗、localStorageを使用:', error);
+                
+                try {
+                    const savedMonthly = localStorage.getItem('yahoo-monthly-data');
+                    const savedRaw = localStorage.getItem('yahoo-raw-data');
+                    const savedAdjust = localStorage.getItem('yahoo-adjustments');
+                    const savedStatus = localStorage.getItem('yahoo-upload-status');
+                    
+                    if (savedMonthly) monthlyData = JSON.parse(savedMonthly);
+                    if (savedRaw) {
+                        rawData = JSON.parse(savedRaw);
+                        console.log('原価データ読み込み成功（localStorage）:', Object.keys(rawData.cost).length + '件');
+                    }
+                    if (savedAdjust) adjustments = JSON.parse(savedAdjust);
+                    if (savedStatus) {
+                        uploadStatus = JSON.parse(savedStatus);
+                        if (uploadStatus.cost) {
+                            document.getElementById('costStatus').textContent = '✓ 保存済み';
+                            document.getElementById('costStatus').className = 'text-green-600 mt-2 text-sm';
+                        }
+                    }
+                    
+                    console.log('データ読み込み完了（localStorage）');
+                } catch (localError) {
+                    console.error('localStorage読み込みエラー:', localError);
+                }
+            }
+            
+            selectMonth(currentMonth);
+        }
+
+        document.getElementById('searchInput').addEventListener('input', updateProductsTable);
+
+        function toggleEditMode(type) {
+            const labels = {
+                shipping: '送料調整額',
+                proption: 'PRオプション調整額',
+                other: 'その他調整額',
+                adjustment: '調整額'
+            };
+            const adj = getAdjustments(currentYear, currentMonth);
+            const value = prompt(`${currentYear}年${currentMonth}の${labels[type]}を入力してください`, adj[type] || 0);
+            if (value !== null) {
+                adj[type] = parseFloat(value) || 0;
+                saveToStorage();
+                updateDisplay();
+                updateComparison();
+            }
+        }
+
+        document.getElementById('yearSelect').addEventListener('change', function() {
+            currentYear = this.value;
+            document.getElementById('headerYear').textContent = currentYear + '年';
+            selectMonth(currentMonth);
+        });
+
+        // データリセット機能
+        async function resetAllData() {
+            if (!confirm('すべてのデータをリセットしますか？\nこの操作は取り消せません。')) {
+                return;
+            }
+            
+            try {
+                // データをクリア
+                monthlyData = {};
+                rawData = {
+                    sales: {},
+                    ads: {},
+                    cost: {}
+                };
+                adjustments = {};
+                uploadStatus = {
+                    sales: false,
+                    ads: false,
+                    cost: false
+                };
+
+                // ストレージをクリア
+                if (window.storage) {
+                    await window.storage.delete('yahoo-monthly-data');
+                    await window.storage.delete('yahoo-raw-data');
+                    await window.storage.delete('yahoo-adjustments');
+                    await window.storage.delete('yahoo-upload-status');
+                } else {
+                    localStorage.removeItem('yahoo-monthly-data');
+                    localStorage.removeItem('yahoo-raw-data');
+                    localStorage.removeItem('yahoo-adjustments');
+                    localStorage.removeItem('yahoo-upload-status');
+                }
+
+                // UIをリセット
+                document.getElementById('costStatus').textContent = '未登録';
+                document.getElementById('costStatus').className = 'mt-2 text-sm';
+                
+                // 表示を更新
+                updateDisplay();
+                updateComparison();
+                
+                alert('すべてのデータをリセットしました');
+            } catch (error) {
+                console.error('リセットエラー:', error);
+                alert('リセットに失敗しました');
+            }
+        }
+
+        // バックアップモーダル
+        function openBackupModal() {
+            document.getElementById('backupModal').classList.remove('hidden');
+            document.getElementById('backupModal').classList.add('flex');
+        }
+
+        function closeBackupModal() {
+            document.getElementById('backupModal').classList.add('hidden');
+            document.getElementById('backupModal').classList.remove('flex');
+        }
+
+        // バックアップダウンロード
+        function downloadBackup() {
+            const backupData = {
+                version: '1.0',
+                timestamp: new Date().toISOString(),
+                monthlyData: monthlyData,
+                rawData: rawData,
+                adjustments: adjustments,
+                uploadStatus: uploadStatus
+            };
+
+            const json = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const dateStr = new Date().toISOString().slice(0, 10);
+            link.download = `yahoo_profit_backup_${dateStr}.json`;
+            link.click();
+            
+            alert('バックアップファイルをダウンロードしました');
+        }
+
+        // バックアップ復元
+        async function restoreBackup() {
+            const fileInput = document.getElementById('backupFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('ファイルを選択してください');
+                return;
+            }
+
+            if (!confirm('現在のデータを上書きしますか？\nこの操作は取り消せません。')) {
+                return;
+            }
+
+            try {
+                const text = await file.text();
+                const backupData = JSON.parse(text);
+
+                // データを復元
+                monthlyData = backupData.monthlyData || {};
+                rawData = backupData.rawData || { sales: {}, ads: {}, cost: {} };
+                adjustments = backupData.adjustments || {};
+                uploadStatus = backupData.uploadStatus || { sales: false, ads: false, cost: false };
+
+                // ストレージに保存
+                await saveToStorage();
+
+                // UIを更新
+                if (uploadStatus.cost) {
+                    const costCount = Object.keys(rawData.cost).length;
+                    document.getElementById('costStatus').textContent = '✓ 保存済み (' + costCount + '件)';
+                    document.getElementById('costStatus').className = 'text-green-600 mt-2 text-sm';
+                }
+
+                updateDisplay();
+                updateComparison();
+
+                closeBackupModal();
+                alert('バックアップを復元しました');
+            } catch (error) {
+                console.error('復元エラー:', error);
+                alert('バックアップの復元に失敗しました: ' + error.message);
+            }
+        }
+
+        // スプレッドシートモーダル
+        function openSpreadsheetModal() {
+            document.getElementById('spreadsheetModal').classList.remove('hidden');
+            document.getElementById('spreadsheetModal').classList.add('flex');
+            
+            // 保存されているURL を読み込み
+            const savedUrl = localStorage.getItem('yahoo-gas-url');
+            if (savedUrl) {
+                document.getElementById('gasUrl').value = savedUrl;
+                document.getElementById('gasUrlStatus').textContent = '✓ URL設定済み';
+                document.getElementById('gasUrlStatus').className = 'text-green-600 mt-2 text-sm';
+            }
+        }
+
+        function closeSpreadsheetModal() {
+            document.getElementById('spreadsheetModal').classList.add('hidden');
+            document.getElementById('spreadsheetModal').classList.remove('flex');
+        }
+
+        // GAS URL を保存
+        function saveGasUrl() {
+            const url = document.getElementById('gasUrl').value.trim();
+            if (!url) {
+                alert('URLを入力してください');
+                return;
+            }
+
+            if (!url.startsWith('https://script.google.com/macros/s/')) {
+                alert('正しいGoogle Apps ScriptのWebアプリURLを入力してください');
+                return;
+            }
+
+            localStorage.setItem('yahoo-gas-url', url);
+            document.getElementById('gasUrlStatus').textContent = '✓ URL保存完了';
+            document.getElementById('gasUrlStatus').className = 'text-green-600 mt-2 text-sm';
+            alert('URLを保存しました');
+        }
+
+        // スプレッドシートへ保存
+        async function saveToSpreadsheet() {
+            const gasUrl = localStorage.getItem('yahoo-gas-url');
+            if (!gasUrl) {
+                alert('先にGAS WebアプリURLを設定してください');
+                return;
+            }
+
+            const products = (monthlyData[currentYear] && monthlyData[currentYear][currentMonth]) 
+                             ? monthlyData[currentYear][currentMonth] 
+                             : [];
+            
+            if (products.length === 0) {
+                alert(`${currentYear}年${currentMonth}のデータがありません`);
+                return;
+            }
+
+            if (!confirm(`${currentYear}年${currentMonth}のデータをスプレッドシートに保存しますか？`)) {
+                return;
+            }
+
+            try {
+                const monthNumber = currentMonth.replace('月', '');
+                const adj = getAdjustments(currentYear, currentMonth);
+                
+                const dataToSave = {
+                    yearMonth: `${currentYear}/${monthNumber}`,
+                    products: products.map(p => ({
+                        code: p.id,
+                        name: p.name,
+                        sales: Math.round(p.sales),
+                        quantity: p.quantity,
+                        commission: Math.round(p.commission),
+                        shipping: Math.round(p.shipping),
+                        ads: Math.round(p.ads),
+                        cost: Math.round(p.cost),
+                        other: Math.round(p.other || 0)
+                    })),
+                    adjustments: adj
+                };
+
+                const response = await fetch(gasUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(dataToSave)
+                });
+
+                alert(`${currentYear}年${currentMonth}のデータをスプレッドシートに送信しました！\n数秒後にシートを確認してください。`);
+            } catch (error) {
+                console.error('送信エラー:', error);
+                alert('スプレッドシートへの保存に失敗しました: ' + error.message);
+            }
+        }
+
+        // スプレッドシートから読み込み
+        async function loadFromSpreadsheet() {
+            const gasUrl = localStorage.getItem('yahoo-gas-url');
+            if (!gasUrl) {
+                alert('先にGAS WebアプリURLを設定してください');
+                return;
+            }
+
+            const year = document.getElementById('loadYear').value;
+            const monthNum = document.getElementById('loadMonth').value;
+            const month = monthNum + '月';
+
+            if (!confirm(`スプレッドシートから${year}年${month}のデータを読み込みますか？\n現在のデータは上書きされます。`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${gasUrl}?year=${year}&month=${monthNum}`, {
+                    method: 'GET'
+                });
+
+                const data = await response.json();
+                
+                if (!data || !data.products || data.products.length === 0) {
+                    alert(`${year}年${month}のデータがスプレッドシートに見つかりませんでした`);
+                    return;
+                }
+
+                // データを変換
+                if (!monthlyData[year]) monthlyData[year] = {};
+                
+                monthlyData[year][month] = data.products.map(p => ({
+                    id: p.code,
+                    productCode: p.code,
+                    name: p.name,
+                    sales: p.sales,
+                    quantity: p.quantity,
+                    commission: p.commission,
+                    shipping: p.shipping,
+                    ads: p.ads,
+                    cost: p.cost,
+                    other: p.other || 0,
+                    proption: 0,
+                    access: 0
+                }));
+
+                if (data.adjustments) {
+                    if (!adjustments[year]) adjustments[year] = {};
+                    adjustments[year][month] = data.adjustments;
+                }
+
+                await saveToStorage();
+
+                currentYear = year;
+                currentMonth = month;
+                document.getElementById('headerYear').textContent = year + '年';
+                document.getElementById('headerMonth').textContent = month;
+                document.getElementById('yearSelect').value = year;
+
+                initMonthSelector();
+                updateDisplay();
+                updateComparison();
+
+                closeSpreadsheetModal();
+                alert(`${year}年${month}のデータを読み込みました`);
+            } catch (error) {
+                console.error('読み込みエラー:', error);
+                alert('スプレッドシートからの読み込みに失敗しました: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
