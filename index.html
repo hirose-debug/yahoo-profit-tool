@@ -187,7 +187,7 @@
                             <th class="p-3 text-left">商品名</th>
                             <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('price')">販売単価 ↕</th>
                             <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('sales')">売上 ↕</th>
-                            <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('quantity')">注文数 ↕</th>
+                            <th class="p-3 text-right cursor-pointer hover:bg-gray-200" onclick="sortTable('quantity')">注文点数 ↕</th>
                             <th class="p-3 text-right">手数料</th>
                             <th class="p-3 text-right">送料</th>
                             <th class="p-3 text-right">広告費</th>
@@ -1009,7 +1009,7 @@
                     const productCode = (row['商品コード'] || '').trim();
                     const subCode = (row['サブコード'] || '').trim();
                     const sales = parseFloat(row['売上合計値(税込)'] || row['売上合計値（税込）']) || 0;
-                    const quantity = parseInt(row['注文数合計']) || 0;
+                    const quantity = parseInt(row['注文点数合計']) || 0;
                     const purchaseRate = row['平均購買率'];
                     const pv1 = parseInt(row['ページビュー(優良配送あり)'] || row['ページビュー（優良配送あり）']) || 0;
                     const pv2 = parseInt(row['ページビュー(優良配送なし)'] || row['ページビュー（優良配送なし）']) || 0;
@@ -1039,7 +1039,7 @@
                         };
                         
                         if (aggregateCount <= 5) {
-                            console.log(`  集約データ[${aggregateCount}]: "${productCode}" -> 売上=${sales}円, 注文数=${quantity}`);
+                            console.log(`  集約データ[${aggregateCount}]: "${productCode}" -> 売上=${sales}円, 注文点数=${quantity}`);
                         }
                     } else if (subCode) {
                         skippedCount++;
@@ -1406,7 +1406,7 @@
                 return;
             }
 
-            let csv = '商品コード,商品名,売上,注文数,手数料,送料,広告費,仕入原価,その他,利益,利益率,広告抜き利益率\n';
+            let csv = '商品コード,商品名,売上,注文点数,手数料,送料,広告費,仕入原価,その他,利益,利益率,広告抜き利益率\n';
             products.forEach(p => {
                 const profit = p.sales - p.commission - p.shipping - p.ads - (p.proption || 0) - p.cost - (p.other || 0);
                 const profitRate = p.sales > 0 ? (profit / p.sales * 100).toFixed(1) : 0;
