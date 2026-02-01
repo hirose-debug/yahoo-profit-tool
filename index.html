@@ -54,7 +54,7 @@
 
     <div class="max-w-7xl mx-auto p-6">
         <!-- サマリー -->
-        <div class="grid grid-cols-9 gap-3 mb-6">
+        <div class="grid grid-cols-10 gap-3 mb-6">
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600 mb-1">売上</div>
                 <div class="text-2xl font-bold" id="totalSales">¥0</div>
@@ -68,7 +68,7 @@
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
                     <span>送料</span>
-                    <button onclick="toggleEditMode('shipping')" class="text-xs text-blue-600">✏️</button>
+                    <button onclick="adjustShipping()" class="text-xs text-blue-600">✏️</button>
                 </div>
                 <div class="text-2xl font-bold text-red-600" id="totalShipping">¥0</div>
                 <div class="text-xs text-gray-500" id="shippingRate">(0%)</div>
@@ -81,10 +81,18 @@
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
                     <span>PRオプション</span>
-                    <button onclick="toggleEditMode('proption')" class="text-xs text-blue-600">✏️</button>
+                    <button onclick="adjustProption()" class="text-xs text-blue-600">✏️</button>
                 </div>
                 <div class="text-2xl font-bold text-red-600" id="totalProption">¥0</div>
                 <div class="text-xs text-gray-500" id="proptionRate">(0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
+                    <span>アフィリエイト</span>
+                    <button onclick="adjustAffiliate()" class="text-xs text-blue-600">✏️</button>
+                </div>
+                <div class="text-2xl font-bold text-red-600" id="totalAffiliate">¥0</div>
+                <div class="text-xs text-gray-500" id="affiliateRate">(0%)</div>
             </div>
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600 mb-1">仕入原価</div>
@@ -93,11 +101,26 @@
             </div>
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
-                    <span>その他</span>
-                    <button onclick="toggleEditMode('other')" class="text-xs text-blue-600">✏️</button>
+                    <span>倉庫保管料等</span>
+                    <button onclick="adjustOtherExpense()" class="text-xs text-blue-600">✏️</button>
                 </div>
-                <div class="text-2xl font-bold" id="totalOther">¥0</div>
+                <div class="text-2xl font-bold text-red-600" id="totalOther">¥0</div>
                 <div class="text-xs text-gray-500" id="otherRate">(0%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
+                    <span>調整額</span>
+                    <button onclick="adjustAdjustment()" class="text-xs text-blue-600">✏️</button>
+                </div>
+                <div class="text-2xl font-bold" id="totalAdjustment">¥0</div>
+                <div class="text-xs text-gray-500" id="adjustmentRate">(-0.03%)</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600 mb-1">利益</div>
+                <div class="text-2xl font-bold text-blue-600" id="totalProfit">¥0</div>
+                <div class="text-xs text-gray-500" id="profitRate">(0%)</div>
+            </div>
+        </div>
             </div>
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600 mb-1 flex justify-between items-center">
@@ -492,22 +515,25 @@
                 shipping: acc.shipping + (p.shipping || 0),
                 ads: acc.ads + (p.ads || 0),
                 proption: acc.proption + (p.proption || 0),
+                affiliate: acc.affiliate + (p.affiliate || 0),
                 cost: acc.cost + (p.cost || 0),
                 other: acc.other + (p.other || 0)
-            }), { sales: 0, commission: 0, shipping: 0, ads: 0, proption: 0, cost: 0, other: 0 });
+            }), { sales: 0, commission: 0, shipping: 0, ads: 0, proption: 0, affiliate: 0, cost: 0, other: 0 });
 
             totals.shipping += adj.shipping || 0;
             totals.proption += adj.proption || 0;
+            totals.affiliate += adj.affiliate || 0;
             totals.other += adj.other || 0;
             const totalAdjustment = adj.adjustment || 0;
             
-            const profit = totals.sales - totals.commission - totals.shipping - totals.ads - totals.proption - totals.cost - totals.other + totalAdjustment;
+            const profit = totals.sales - totals.commission - totals.shipping - totals.ads - totals.proption - totals.affiliate - totals.cost - totals.other + totalAdjustment;
 
             document.getElementById('totalSales').textContent = formatCurrency(totals.sales);
             document.getElementById('totalCommission').textContent = formatCurrency(totals.commission);
             document.getElementById('totalShipping').textContent = formatCurrency(totals.shipping);
             document.getElementById('totalAds').textContent = formatCurrency(totals.ads);
             document.getElementById('totalProption').textContent = formatCurrency(totals.proption);
+            document.getElementById('totalAffiliate').textContent = formatCurrency(totals.affiliate);
             document.getElementById('totalCost').textContent = formatCurrency(totals.cost);
             document.getElementById('totalOther').textContent = formatCurrency(totals.other);
             document.getElementById('totalAdjustment').textContent = formatCurrency(totalAdjustment);
@@ -517,6 +543,7 @@
             document.getElementById('shippingRate').textContent = totals.sales > 0 ? `(${(totals.shipping/totals.sales*100).toFixed(1)}%)` : '(0%)';
             document.getElementById('adsRate').textContent = totals.sales > 0 ? `(${(totals.ads/totals.sales*100).toFixed(1)}%)` : '(0%)';
             document.getElementById('proptionRate').textContent = totals.sales > 0 ? `(${(totals.proption/totals.sales*100).toFixed(1)}%)` : '(0%)';
+            document.getElementById('affiliateRate').textContent = totals.sales > 0 ? `(${(totals.affiliate/totals.sales*100).toFixed(1)}%)` : '(0%)';
             document.getElementById('costRate').textContent = totals.sales > 0 ? `(${(totals.cost/totals.sales*100).toFixed(1)}%)` : '(0%)';
             document.getElementById('otherRate').textContent = totals.sales > 0 ? `(${(totals.other/totals.sales*100).toFixed(1)}%)` : '(0%)';
             document.getElementById('profitRate').textContent = totals.sales > 0 ? `(${(profit/totals.sales*100).toFixed(1)}%)` : '(0%)';
@@ -1425,7 +1452,8 @@
             const labels = {
                 shipping: '送料調整額',
                 proption: 'PRオプション調整額',
-                other: 'その他調整額',
+                affiliate: 'アフィリエイト調整額',
+                other: '倉庫保管料等調整額',
                 adjustment: '調整額'
             };
             const adj = getAdjustments(currentYear, currentMonth);
@@ -1437,6 +1465,13 @@
                 updateComparison();
             }
         }
+
+        // 個別の調整関数（ボタンから呼び出し）
+        function adjustShipping() { toggleEditMode('shipping'); }
+        function adjustProption() { toggleEditMode('proption'); }
+        function adjustAffiliate() { toggleEditMode('affiliate'); }
+        function adjustOtherExpense() { toggleEditMode('other'); }
+        function adjustAdjustment() { toggleEditMode('adjustment'); }
 
         document.getElementById('yearSelect').addEventListener('change', function() {
             currentYear = this.value;
