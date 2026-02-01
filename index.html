@@ -1126,33 +1126,90 @@
                     } else {
                         // CSVファイルの読み込み
                         console.log('CSV形式で読み込み中...');
-                        const costData = await readCSV(costFile, 'utf-8');
                         
-                        costData.forEach((row, index) => {
-                            const rowArray = Object.values(row);
-                            if (rowArray.length > 21) {
-                                const productCode = (rowArray[1] || '').trim();
-                                const costStr = (rowArray[15] || '').trim();
-                                const shippingStr = (rowArray[21] || '').trim();
-                                const name = (rowArray[3] || '').trim();
-
-                                if (productCode && productCode !== '商品コード' && costStr && costStr !== '商品単体原価') {
+                        // CSVを直接読み込んで配列データとして処理
+                        const text = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                let content = e.target.result;
+                                // BOM除去
+                                if (content.charCodeAt(0) === 0xFEFF) {
+                                    content = content.slice(1);
+                                }
+                                resolve(content);
+                            };
+                            reader.onerror = reject;
+                            reader.readAsText(costFile, 'utf-8');
+                        });
+                        
+                        // 行に分割
+                        const lines = text.split('\n');
+                        console.log(`総行数: ${lines.length}`);
+                        
+                        // 各行をカンマで分割して配列化
+                        const rows = lines.map(line => {
+                            // ダブルクォートを考慮した分割
+                            const values = [];
+                            let current = '';
+                            let inQuote = false;
+                            
+                            for (let i = 0; i < line.length; i++) {
+                                const char = line[i];
+                                if (char === '"') {
+                                    inQuote = !inQuote;
+                                } else if (char === ',' && !inQuote) {
+                                    values.push(current.trim());
+                                    current = '';
+                                } else {
+                                    current += char;
+                                }
+                            }
+                            values.push(current.trim());
+                            return values;
+                        });
+                        
+                        console.log('最初の5行のB列(インデックス1):');
+                        for (let i = 0; i < Math.min(5, rows.length); i++) {
+                            console.log(`  行${i}: "${rows[i][1] || ''}"`);
+                        }
+                        
+                        // データ行を処理（ヘッダーや空行をスキップ）
+                        for (let i = 0; i < rows.length; i++) {
+                            const row = rows[i];
+                            
+                            if (row.length > 21) {
+                                const productCode = (row[1] || '').trim();
+                                const costStr = (row[15] || '').trim();
+                                const shippingStr = (row[21] || '').trim();
+                                const name = (row[3] || '').trim();
+                                
+                                // 有効なデータ行の条件
+                                if (productCode && 
+                                    productCode !== '商品コード' &&  // ヘッダー行を除外
+                                    costStr && 
+                                    costStr !== '商品単体原価' &&  // ヘッダー行を除外
+                                    costStr !== '' &&
+                                    !isNaN(parseFloat(costStr.replace(/,/g, '')))) {  // 数値として解析可能か確認
+                                    
                                     const cost = parseFloat(costStr.replace(/,/g, '')) || 0;
                                     const shipping = parseFloat(shippingStr.replace(/,/g, '')) || 0;
                                     
-                                    rawData.cost[productCode] = {
-                                        cost: cost,
-                                        shipping: shipping,
-                                        name: name
-                                    };
-                                    costCount++;
-                                    
-                                    if (costCount <= 5) {
-                                        console.log(`  原価登録[${costCount}]: "${productCode}" -> 原価=${cost}円, 送料=${shipping}円`);
+                                    // 原価または送料が0より大きい場合のみ登録
+                                    if (cost > 0 || shipping > 0) {
+                                        rawData.cost[productCode] = {
+                                            cost: cost,
+                                            shipping: shipping,
+                                            name: name
+                                        };
+                                        costCount++;
+                                        
+                                        if (costCount <= 10) {
+                                            console.log(`  原価登録[${costCount}]: "${productCode}" -> 原価=${cost}円, 送料=${shipping}円`);
+                                        }
                                     }
                                 }
                             }
-                        });
+                        }
                     }
                     
                     uploadStatus.cost = true;
@@ -1234,7 +1291,13 @@
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     try {
-                        const text = e.target.result;
+                        let text = e.target.result;
+                        
+                        // BOM（Byte Order Mark）を除去
+                        if (text.charCodeAt(0) === 0xFEFF) {
+                            text = text.slice(1);
+                        }
+                        
                         const lines = text.split('\n').filter(line => line.trim());
                         if (lines.length === 0) {
                             reject(new Error('CSVファイルが空です'));
